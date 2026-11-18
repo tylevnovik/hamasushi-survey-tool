@@ -7,21 +7,26 @@
 
 ---
 
-## 推荐使用方式（支持「零安装」直接开用）
+## 推荐使用方式（支持单文件 `.exe` 零依赖直接运行）
 
-### 方式一：Windows 免安装版（不用 Python、不用 Node、不用装任何东西）
+### 方式一：单文件 Rust 原生可执行程序 `hamasushi-tool.exe`（最推荐，不用脚本也不用装任何环境）
 
-只依赖 Windows 10/11 系统自带的 PowerShell 与 Microsoft Edge，下载解压即可直接用：
+使用 Rust 编译生成单个独立 Windows 可执行文件（约 5 MB，源码位于 [rust/](rust)），网页界面、离线二维码解码库与 HTTP 填答引擎全部打包在一个 `.exe` 里，**无 Python、无脚本、无外部依赖**：
 
-1. 前往 [Releases 最新版本](https://github.com/tylevnovik/hamasushi-survey-tool/releases/latest) 下载 **`hamasushi-win-noinstall.zip`**（或直接下载本仓库源码包）并解压。
-2. 直接双击 **`免安装直接启动.bat`**（底层运行 [win_app.ps1](win_app.ps1)）。
-3. 弹出独立应用窗口后：
-   - **直接拖入照片**：把手机拍的小票照片（微信文件传输助手保存的、截图等）拖进窗口；
+1. 前往 [Releases 最新版本](https://github.com/tylevnovik/hamasushi-survey-tool/releases/latest) 直接下载 **`hamasushi-tool.exe`**。
+2. **双击打开**即可弹出独立桌面窗口：
+   - **直接拖入照片**：把手机拍的小票照片（微信保存的、截图等）拖进窗口；
    - **Ctrl+V 粘贴**：直接粘贴截图、图片或链接；
-   - **打开摄像头扫码**：小票对准电脑摄像头扫一下；
-   - 由 Edge 原生 `BarcodeDetector` + 内置离线 [jsQR.js](public/vendor/jsQR.js) 直接在前端识别二维码，PowerShell 通过系统 `.NET HttpClient` 完成约 20 页问卷并展示超大号验证码。
+   - **打开摄像头扫码**：小票对准摄像头扫一下；
+   - **三层识别与极速填答**：前端（Edge `BarcodeDetector` + 内置 `jsQR`）与 Rust 原生 `rqrr` 后端双引擎识别小票二维码，约 4~5 秒完成 20 页问卷并显示超大号验证码。
+3. 也支持把小票照片直接拖到 `hamasushi-tool.exe` 图标上，或命令行使用：
+   ```powershell
+   hamasushi-tool.exe --solve "小票照片.jpg"
+   hamasushi-tool.exe --solve "RCN你的小票编号" --json
+   hamasushi-tool.exe --lan   # 允许同一 Wi-Fi 下手机访问
+   ```
 
-> 如果照片反光、角度歪斜或二维码过小导致前端未识别，可改用 Python 桌面增强版：双击 **`启动拖拽小票工具.bat`**（需 Python/`uv`，会在前端识别失败时自动启用本地 OpenCV 多尺度增强识别 [qr_utils.py](qr_utils.py)）。如希望同一 Wi-Fi 下手机连电脑访问，可运行：`uv run --extra desktop python desktop_app.py --lan`。
+> 备选：如果你不想下载编译好的 `.exe`，也可下载 Release 中的 **`hamasushi-win-noinstall.zip`** 解压双击 `免安装直接启动.bat`（纯 Windows 自带 PowerShell），或用 Python 桌面增强版（`启动拖拽小票工具.bat`，支持 OpenCV 解码）。
 
 ---
 

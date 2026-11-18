@@ -297,6 +297,79 @@ def test_powershell_zero_install_server() -> None:
         proc.wait(timeout=5)
 
 
+def test_rust_binary_server() -> None:
+    """Verify compiled Rust hamasushi-tool.exe serves the embedded UI and decodes receipt photos."""
+    from pathlib import Path
+
+    exe_path = Path("rust/target/release/hamasushi-tool.exe")
+    assert exe_path.is_file(), f"Missing release binary: {exe_path}"
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+
+    proc = subprocess.Popen(
+        [str(exe_path), "--no-browser", "--port", str(port)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        base = f"http://127.0.0.1:{port}"
+        for _ in range(30):
+            try:
+                r = requests.get(f"{base}/api/solve", timeout=1)
+                if r.status_code == 200:
+                    assert r.json()["mode"] == "rust-native"
+                    break
+            except requests.RequestException:
+                time.sleep(0.15)
+        else:
+            raise AssertionError("Rust hamasushi-tool.exe server failed to start in time")
+
+        blank_buf = io.BytesIO()
+        Image.new("RGB", (120, 120), color=(255, 255, 255)).save(blank_buf, format="PNG")
+        r_no_qr = requests.post(
+            f"{base}/api/solve-image",
+            data=blank_buf.getvalue(),
+            headers={"Content-Type": "image/png"},
+            timeout=5,
+        )
+        assert r_no_qr.status_code == 422
+
+        enc = cv2.QRCodeEncoder.create()
+        qr_raw = enc.encode("https://cn-hamasushi.csfeedback.net/sv/zh/RCN0512142801118888654321")
+        qr_large = cv2.resize(qr_raw, (260, 260), interpolation=cv2.INTER_NEAREST)
+        canvas = np.full((1400, 1000), 190, dtype=np.uint8)
+        canvas[950:1210, 370:630] = qr_large
+        buf = io.BytesIO()
+        Image.fromarray(canvas).save(buf, format="PNG")
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(channel="msedge", headless=True)
+            page = browser.new_page()
+            page.route(
+                "**/api/solve",
+                lambda route: route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body='{"success":true,"status":"completed","code":"S8888","pages_visited":20,"elapsed_ms":1100,"receipt_code":"RCN0512142801118888654321"}',
+                )
+                if route.request.method == "POST"
+                else route.continue_(),
+            )
+            page.goto(f"{base}/", wait_until="networkidle")
+            assert "Rust 单文件零依赖模式" in page.locator("#mode-foot").inner_text()
+            page.locator("#file-input").set_input_files(
+                {"name": "receipt.png", "mimeType": "image/png", "buffer": buf.getvalue()}
+            )
+            page.locator("#result-card.visible").wait_for(timeout=8000)
+            assert page.locator("#result-code").inner_text().strip() == "S8888"
+            browser.close()
+    finally:
+        proc.terminate()
+        proc.wait(timeout=5)
+
+
 if __name__ == "__main__":
     test_parse_receipt_code()
     test_normalize_target_url()
@@ -308,4 +381,5 @@ if __name__ == "__main__":
     test_desktop_app_http_endpoints()
     test_browser_ui_photo_qr_flow()
     test_powershell_zero_install_server()
+    test_rust_binary_server()
     print("All unit tests passed!")

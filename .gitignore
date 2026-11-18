@@ -9,3 +9,5 @@ output_*/
 .pytest_cache/
 .DS_Store
 Thumbs.db
+rust/target/
+

@@ -1,0 +1,23 @@
+[package]
+name = "hamasushi-tool"
+version = "1.3.0"
+edition = "2024"
+description = "Single-binary zero-dependency Hamasushi China survey solver & receipt QR drag-and-drop tool"
+
+[dependencies]
+base64 = "0.22"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "bmp", "gif"] }
+regex = "1"
+rqrr = "0.11.0"
+scraper = "0.29.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tiny_http = "0.12.0"
+ureq = { version = "3.5.2", features = ["cookies", "charset"] }
+url = "2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
