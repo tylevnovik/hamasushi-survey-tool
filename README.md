@@ -7,13 +7,13 @@
 
 ---
 
-## 推荐使用方式（支持单文件 `.exe` 零依赖直接运行）
+## 推荐使用方式
 
-### 方式一：单文件免安装原生程序（Rust / Go 双版本，不用脚本也不用装任何环境）
+### 方式一：单文件免安装原生程序（Rust / Go 双版本，不用脚本也不用装环境）
 
 提供 **Rust**（约 5.1 MB，源码在 [rust/](rust)）和 **Go**（约 9.5 MB，源码在 [go/](go)）两个单文件版本。网页界面、离线二维码解码库与 HTTP 填答引擎全部打包在**这一个可执行文件里**，**无 Python、无脚本、无外部依赖**：
 
-1. 前往 [Releases 最新版本](https://github.com/tylevnovik/hamasushi-survey-tool/releases/latest) 直接下载：
+1. 前往 [Releases 最新版本](https://github.com/tylevnovik/hamasushi-survey-tool/releases/latest) 直接下载对应平台文件（本地编译后也保存在 `dist/`）：
    - Windows（Rust 版，体积更小）：**`hamasushi-tool.exe`**
    - Windows（Go 版）：**`hamasushi-tool-go.exe`**
    - macOS (Apple Silicon) / Linux（Go 跨平台编译版）：**`hamasushi-tool-darwin-arm64`** / **`hamasushi-tool-linux-amd64`**
@@ -22,71 +22,83 @@
    - **Ctrl+V 粘贴**：直接粘贴截图、图片或链接；
    - **打开摄像头扫码**：小票对准摄像头扫一下；
    - **双引擎识别与极速填答**：前端（Edge `BarcodeDetector` + 内置 `jsQR`）与原生后端（Rust `rqrr` / Go `gozxing`）双引擎识别小票二维码，约 4~5 秒完成 20 页问卷并显示超大号验证码。
-3. 也支持把小票照片直接拖到 `.exe` 图标上，或命令行使用：
+3. 也支持把小票照片直接拖到 `.exe` 图标上，或命令行运行：
    ```powershell
    hamasushi-tool.exe --solve "小票照片.jpg"
    hamasushi-tool-go.exe --solve "RCN你的小票编号" --json
    hamasushi-tool-go.exe --lan   # 允许同一 Wi-Fi 下手机访问
    ```
 
-> 自行编译源码：Rust 版进入 `rust/` 执行 `cargo build --release`；Go 版在仓库根目录执行 `go build -ldflags="-s -w" -o hamasushi-tool-go.exe ./go`。
-> 备选：如偏好纯文本脚本，也可下载 Release 中的 **`hamasushi-win-noinstall.zip`**（Windows 自带 PowerShell）或用 Python 桌面增强版（`启动拖拽小票工具.bat`，支持 OpenCV 解码）。
-
 ---
 
 ### 方式二：部署成个人手机 H5 网页（Vercel 一键部署，自带摄像头扫码）
 
-后台已改造为无浏览器依赖的纯 Python HTTP 引擎，完整适配 **Vercel Serverless Functions**（[api/solve.py](api/solve.py) + [public/index.html](public/index.html)）：
+后台为无浏览器依赖的纯 Python HTTP 引擎，适配 **Vercel Serverless Functions**（[api/solve.py](api/solve.py) + [public/index.html](public/index.html)）：
 
 - [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/tylevnovik/hamasushi-survey-tool)
 - 部署完成后你会获得一个免费的专属 `https://xxx.vercel.app` 网址，收藏到手机桌面或微信收藏里即可：
-  - 手机打开页面 → 点 **“📷 打开摄像头直接扫码”** 或直接从相册选小票照片 → **3~5 秒直接出验证码**，手机端免装任何插件也不用开电脑。
+  - 手机打开页面 → 点 **“📷 打开摄像头直接扫码”** 或从相册选小票照片 → **约 4~5 秒直接出验证码**，手机端免装任何插件也不用开电脑。
 
 ---
 
-## 其他使用方式
-
 ### 方式三：Tampermonkey 油猴脚本（适合手机 Safari / 支持扩展的浏览器）
 
-1. 先在浏览器安装 **Tampermonkey（篡改猴）**、**Violentmonkey（暴力猴）** 或 iOS Safari 的 **Userscripts** 扩展。
-2. 点击直装链接即可安装：
-   - **Release 直装链接（跟随最新版本）**：
-     [点击安装 hamasushi_autofill.user.js](https://github.com/tylevnovik/hamasushi-survey-tool/releases/latest/download/hamasushi_autofill.user.js)
-   - **Release 发布页**：
-     [查看 Releases](https://github.com/tylevnovik/hamasushi-survey-tool/releases/latest)
+1. 在浏览器安装 **Tampermonkey（篡改猴）**、**Violentmonkey（暴力猴）** 或 iOS Safari 的 **Userscripts** 扩展。
+2. 点击直装链接安装：[点击安装 hamasushi_autofill.user.js](https://github.com/tylevnovik/hamasushi-survey-tool/releases/latest/download/hamasushi_autofill.user.js)
 3. 打开任意 `https://cn-hamasushi.csfeedback.net/sv/...` 页面，点击右下角 **“一键自动填答并拿编号”**。
 
-### 方式四：Python 命令行工具（[hamasushi_survey.py](hamasushi_survey.py)）
+---
 
-默认使用极速 HTTP 引擎（约 3~5 秒），也支持直接传入小票照片或切换 Playwright 浏览器引擎截图：
+### 方式四：免安装 PowerShell 版 & Python 工具
 
-```powershell
-# 极速模式（支持完整 URL、RCN 编号，或直接传小票照片路径）
-uv run python hamasushi_survey.py "https://cn-hamasushi.csfeedback.net/sv/zh/RCN你的小票编号"
-uv run --extra desktop python hamasushi_survey.py --qr "C:\path\to\receipt.jpg"
+- **Windows PowerShell 免安装版**（[scripts/win_app.ps1](scripts/win_app.ps1)）：下载 Release 中的 `hamasushi-win-noinstall.zip` 解压，或直接双击 [scripts/免安装直接启动.bat](scripts/免安装直接启动.bat)。
+- **Python 桌面增强版**（支持本地 OpenCV 多尺度二维码解码）：双击 [scripts/启动拖拽小票工具.bat](scripts/启动拖拽小票工具.bat) 或运行：
+  ```powershell
+  uv sync --all-extras
+  uv run --extra desktop python python/desktop_app.py
+  ```
+- **Python 命令行**（[python/hamasushi_survey.py](python/hamasushi_survey.py)）：
+  ```powershell
+  uv run python python/hamasushi_survey.py "https://cn-hamasushi.csfeedback.net/sv/zh/RCN你的小票编号"
+  uv run --extra desktop python python/hamasushi_survey.py --qr "C:\path\to\receipt.jpg"
+  uv run --all-extras python python/hamasushi_survey.py "RCN你的小票编号" --engine playwright --headless --json-out
+  ```
 
-# Playwright 完整浏览器模式（可保存完成页截图或在 95% 提交前人工确认）
-uv run --all-extras python hamasushi_survey.py "RCN你的小票编号" --engine playwright --headless --json-out
+---
+
+## 仓库目录结构
+
+```text
+hamasushi-survey-tool/
+├── api/                         # Vercel Serverless 后端接口
+│   └── solve.py
+├── public/                      # 共用 H5 / 桌面端前端页面与离线 jsQR
+│   ├── index.html
+│   └── vendor/jsQR.js
+├── go/                          # Go 单文件实现（根目录下 go.mod / assets.go 供 //go:embed）
+├── rust/                        # Rust 单文件实现
+├── python/                      # Python CLI、桌面服务、OpenCV 二维码识别与测试
+├── scripts/                     # Windows 启动脚本与 PowerShell 免安装版
+└── hamasushi_autofill.user.js   # Tampermonkey 油猴脚本
 ```
 
 ---
 
-## 核心技术与策略说明
-
-- **RCN 小票编号自动解析**（[survey_common.py](survey_common.py)）：自动解析到店月/日、时/分与 4 位店铺编号，补全原网页未自动预填的“分钟”字段（`visit_hour`）并勾选 `同意本规程约定`。
-- **智能正向作答策略**：优先选择 `10 非常推荐`、`非常满意`、`满意`、`肯定会`、`愿意`；遇寿司饭大小/口感等双向尺度题会自动选 `正好`；选填文本框默认留空，仅在出现必填校验提示时自动补全简短好评并重试一次。
-- **人机验证保护**：如遇 CAPTCHA / 人机验证，立即停止自动操作并提示手动处理，不进行任何绕过行为。
-
----
-
-## 本地开发与测试
+## 本地构建与测试
 
 ```powershell
-# 安装完整桌面与浏览器测试依赖
-uv sync --all-extras
+# Python 单元测试与双二进制/PowerShell/Edge UI 集成测试
+uv run python python/test_hamasushi_survey.py
 
-# 运行单元测试、OpenCV 合成小票扫码测试、桌面服务接口及真实浏览器 UI 测试
-uv run python test_hamasushi_survey.py
+# Go 编译与单测
+go vet ./...
+go test -v ./...
+go build -ldflags="-s -w" -o dist/hamasushi-tool-go.exe ./go
+
+# Rust 编译与单测
+cd rust
+cargo test
+cargo build --release
 ```
 
 ---

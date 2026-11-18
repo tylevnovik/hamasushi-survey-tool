@@ -7,9 +7,9 @@ import json
 from pathlib import Path
 import sys
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+PYTHON_DIR = Path(__file__).resolve().parent.parent / "python"
+if str(PYTHON_DIR) not in sys.path:
+    sys.path.insert(0, str(PYTHON_DIR))
 
 from survey_common import DEFAULT_COMMENT  # noqa: E402
 from survey_http import solve_survey_http  # noqa: E402

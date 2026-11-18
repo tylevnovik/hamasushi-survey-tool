@@ -5,8 +5,10 @@ from __future__ import annotations
 from functools import partial
 from http.server import ThreadingHTTPServer
 import io
+from pathlib import Path
 import socket
 import subprocess
+import sys
 import threading
 import time
 
@@ -15,6 +17,8 @@ import numpy as np
 from PIL import Image
 from playwright.sync_api import sync_playwright
 import requests
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
 
 import desktop_app
 import hamasushi_survey as hs
@@ -242,7 +246,7 @@ def test_powershell_zero_install_server() -> None:
             "-ExecutionPolicy",
             "Bypass",
             "-File",
-            "win_app.ps1",
+            str(ROOT_DIR / "scripts" / "win_app.ps1"),
             "-NoBrowser",
             "-Port",
             str(port),
@@ -297,12 +301,9 @@ def test_powershell_zero_install_server() -> None:
         proc.wait(timeout=5)
 
 
-def test_rust_binary_server() -> None:
-    """Verify compiled Rust hamasushi-tool.exe serves the embedded UI and decodes receipt photos."""
-    from pathlib import Path
-
-    exe_path = Path("rust/target/release/hamasushi-tool.exe")
-    assert exe_path.is_file(), f"Missing release binary: {exe_path}"
+def _verify_native_binary_server(exe_path: Path, expected_mode: str, expected_label: str) -> None:
+    """Verify a compiled standalone binary serves the embedded UI and decodes receipt photos."""
+    assert exe_path.is_file(), f"Missing binary: {exe_path}"
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
@@ -319,12 +320,12 @@ def test_rust_binary_server() -> None:
             try:
                 r = requests.get(f"{base}/api/solve", timeout=1)
                 if r.status_code == 200:
-                    assert r.json()["mode"] == "rust-native"
+                    assert r.json()["mode"] == expected_mode
                     break
             except requests.RequestException:
                 time.sleep(0.15)
         else:
-            raise AssertionError("Rust hamasushi-tool.exe server failed to start in time")
+            raise AssertionError(f"{exe_path.name} server failed to start in time")
 
         blank_buf = io.BytesIO()
         Image.new("RGB", (120, 120), color=(255, 255, 255)).save(blank_buf, format="PNG")
@@ -358,7 +359,7 @@ def test_rust_binary_server() -> None:
                 else route.continue_(),
             )
             page.goto(f"{base}/", wait_until="networkidle")
-            assert "Rust 单文件零依赖模式" in page.locator("#mode-foot").inner_text()
+            assert expected_label in page.locator("#mode-foot").inner_text()
             page.locator("#file-input").set_input_files(
                 {"name": "receipt.png", "mimeType": "image/png", "buffer": buf.getvalue()}
             )
@@ -368,6 +369,29 @@ def test_rust_binary_server() -> None:
     finally:
         proc.terminate()
         proc.wait(timeout=5)
+
+
+def test_native_binaries() -> None:
+    """Test both Rust and Go standalone executables inside dist/."""
+    _verify_native_binary_server(
+        ROOT_DIR / "dist" / "hamasushi-tool.exe",
+        expected_mode="rust-native",
+        expected_label="Rust 单文件零依赖模式",
+    )
+    _verify_native_binary_server(
+        ROOT_DIR / "dist" / "hamasushi-tool-go.exe",
+        expected_mode="go-native",
+        expected_label="Go 单文件零依赖模式",
+    )
+
+
+def test_api_solve_import() -> None:
+    """Verify Vercel serverless module resolves python/ imports cleanly."""
+    if str(ROOT_DIR) not in sys.path:
+        sys.path.insert(0, str(ROOT_DIR))
+    import api.solve as api_solve  # noqa: PLC0415
+
+    assert hasattr(api_solve, "handler")
 
 
 if __name__ == "__main__":
@@ -381,5 +405,6 @@ if __name__ == "__main__":
     test_desktop_app_http_endpoints()
     test_browser_ui_photo_qr_flow()
     test_powershell_zero_install_server()
-    test_rust_binary_server()
+    test_native_binaries()
+    test_api_solve_import()
     print("All unit tests passed!")

@@ -9,6 +9,7 @@ output_*/
 .pytest_cache/
 .DS_Store
 Thumbs.db
+dist/
 rust/target/
 *.exe
 hamasushi-tool-linux-*

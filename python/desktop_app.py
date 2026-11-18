@@ -28,7 +28,7 @@ try:
 except ImportError:
     HAS_OPENCV_QR = False
 
-PUBLIC_DIR = Path(__file__).resolve().parent / "public"
+PUBLIC_DIR = Path(__file__).resolve().parent.parent / "public"
 
 
 def _extract_image_bytes(content_type: str, body: bytes) -> bytes:

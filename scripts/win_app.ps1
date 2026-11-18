@@ -15,7 +15,9 @@ Add-Type -AssemblyName System.Net.Http
 Add-Type -AssemblyName System.Web
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$PublicDir = Join-Path $PSScriptRoot "public"
+$LocalPublic = Join-Path $PSScriptRoot "public"
+$ParentPublic = Join-Path (Split-Path $PSScriptRoot -Parent) "public"
+$PublicDir = if (Test-Path $LocalPublic) { $LocalPublic } else { $ParentPublic }
 $BaseSurveyUrl = "https://cn-hamasushi.csfeedback.net/sv/zh"
 $DefaultComment = "菜品新鲜美味，服务态度很好，整体体验非常满意。"
 
