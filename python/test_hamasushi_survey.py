@@ -289,7 +289,7 @@ def test_powershell_zero_install_server() -> None:
                 else route.continue_(),
             )
             page.goto(f"{base}/", wait_until="networkidle")
-            assert "Windows 免安装模式" in page.locator("#mode-foot").inner_text()
+            assert page.locator("#mode-foot").count() == 0
             page.locator("#file-input").set_input_files(
                 {"name": "receipt.png", "mimeType": "image/png", "buffer": buf.getvalue()}
             )
@@ -301,7 +301,7 @@ def test_powershell_zero_install_server() -> None:
         proc.wait(timeout=5)
 
 
-def _verify_native_binary_server(exe_path: Path, expected_mode: str, expected_label: str) -> None:
+def _verify_native_binary_server(exe_path: Path, expected_mode: str) -> None:
     """Verify a compiled standalone binary serves the embedded UI and decodes receipt photos."""
     assert exe_path.is_file(), f"Missing binary: {exe_path}"
 
@@ -359,7 +359,7 @@ def _verify_native_binary_server(exe_path: Path, expected_mode: str, expected_la
                 else route.continue_(),
             )
             page.goto(f"{base}/", wait_until="networkidle")
-            assert expected_label in page.locator("#mode-foot").inner_text()
+            assert page.locator("#mode-foot").count() == 0
             page.locator("#file-input").set_input_files(
                 {"name": "receipt.png", "mimeType": "image/png", "buffer": buf.getvalue()}
             )
@@ -376,12 +376,10 @@ def test_native_binaries() -> None:
     _verify_native_binary_server(
         ROOT_DIR / "dist" / "hamasushi-tool.exe",
         expected_mode="rust-native",
-        expected_label="Rust 单文件零依赖模式",
     )
     _verify_native_binary_server(
         ROOT_DIR / "dist" / "hamasushi-tool-go.exe",
         expected_mode="go-native",
-        expected_label="Go 单文件零依赖模式",
     )
 
 

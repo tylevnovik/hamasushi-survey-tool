@@ -647,10 +647,9 @@ try {
             $path = $req.Url.AbsolutePath
             if ($req.HttpMethod -eq "GET" -and ($path -eq "/api/health" -or $path -eq "/api/solve")) {
                 Send-JsonResponse $res 200 @{
-                    ok         = $true
-                    mode       = "windows-powershell"
-                    opencv_qr  = $false
-                    mode_label = "Windows 免安装模式（无需 Python）：内置 Edge + jsQR 双引擎识别"
+                    ok        = $true
+                    mode      = "windows-powershell"
+                    opencv_qr = $false
                 }
             }
             elseif ($req.HttpMethod -eq "POST" -and $path -eq "/api/solve") {

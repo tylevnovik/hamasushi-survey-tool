@@ -151,8 +151,7 @@ fn handle_request(mut req: Request) {
             json!({
                 "ok": true,
                 "mode": "rust-native",
-                "opencv_qr": true,
-                "mode_label": "Rust 单文件零依赖模式：内置 Edge + Rust 原生 QR 双引擎识别"
+                "opencv_qr": true
             }),
         ),
         (&Method::Post, "/api/solve") => handle_solve_url(&mut req),

@@ -156,20 +156,18 @@ func newServerMux() http.Handler {
 	})
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"ok":         true,
-			"mode":       "go-native",
-			"opencv_qr":  true,
-			"mode_label": "Go 单文件零依赖模式：内置 Edge + Go 原生 ZXing QR 双引擎识别",
+			"ok":        true,
+			"mode":      "go-native",
+			"opencv_qr": true,
 		})
 	})
 	mux.HandleFunc("/api/solve", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			writeJSON(w, http.StatusOK, map[string]any{
-				"ok":         true,
-				"mode":       "go-native",
-				"opencv_qr":  true,
-				"mode_label": "Go 单文件零依赖模式：内置 Edge + Go 原生 ZXing QR 双引擎识别",
+				"ok":        true,
+				"mode":      "go-native",
+				"opencv_qr": true,
 			})
 		case http.MethodPost:
 			handleSolveURL(w, r)

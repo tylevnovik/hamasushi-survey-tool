@@ -357,28 +357,21 @@
       font-size: 11.5px;
       color: var(--muted);
     }
-
-    .mode-foot {
-      text-align: center;
-      font-size: 11.5px;
-      color: var(--muted);
-      margin-top: 6px;
-    }
   </style>
 </head>
 <body>
   <header>
     <h1>滨寿司问卷验证码助手</h1>
-    <div class="coupon-pill">写回小票可当 -10 元优惠券 · 可叠加美团 / 抖音代金券</div>
+    <div class="coupon-pill">写回小票立减 10 元 · 可叠加美团 / 抖音代金券</div>
   </header>
 
   <main>
     <div id="status-banner" class="status-banner"></div>
 
     <div id="result-card" class="result-card">
-      <div class="result-label">本次小票验证码（请写回小票空白处）</div>
+      <div class="result-label">本次验证码</div>
       <div id="result-code" class="result-code">-</div>
-      <div class="result-tip">下次到店出示小票可立减 10 元，支持叠加美团 / 抖音代金券</div>
+      <div class="result-tip">写回小票空白处即可使用</div>
       <button id="copy-code-btn" class="btn-primary" type="button">复制验证码</button>
       <div id="result-meta" class="result-meta"></div>
     </div>
@@ -388,41 +381,39 @@
 
       <div id="dropzone" class="dropzone" role="button" tabindex="0">
         <div class="dropzone-icon">🧾</div>
-        <div class="dropzone-title">拖入手机拍的小票照片 / 截图，或点击选图</div>
-        <div class="dropzone-sub">也支持直接按 <strong>Ctrl+V</strong> 粘贴图片或链接</div>
+        <div class="dropzone-title">拖入或点击上传小票照片</div>
+        <div class="dropzone-sub">支持 <strong>Ctrl+V</strong> 粘贴图片或链接</div>
       </div>
 
       <div class="action-row">
-        <button id="camera-btn" class="btn-cam" type="button">📷 打开摄像头直接扫码</button>
+        <button id="camera-btn" class="btn-cam" type="button">📷 打开摄像头扫码</button>
       </div>
 
       <div id="camera-box" class="camera-box">
         <video id="camera-video" playsinline muted autoplay></video>
-        <div class="camera-hint">请将小票上的二维码对准画面中央</div>
+        <div class="camera-hint">将小票二维码对准画面中央</div>
       </div>
 
-      <div class="divider">或直接粘贴问卷链接 / RCN 编号</div>
+      <div class="divider">或粘贴链接 / 小票编号</div>
 
       <form id="manual-form" class="input-group">
         <input
           id="url-input"
           type="text"
-          placeholder="粘贴 https://cn-hamasushi.csfeedback.net/sv/zh/RCN..."
+          placeholder="粘贴问卷链接或 RCN 编号"
           autocomplete="off"
         />
-        <button id="submit-btn" class="btn-primary" type="submit">获取编号</button>
+        <button id="submit-btn" class="btn-primary" type="submit">获取验证码</button>
       </form>
     </section>
 
     <section id="history-card" class="card" style="display: none;">
       <div class="history-title">
-        <span>最近获取记录（仅保存在本机浏览器）</span>
+        <span>最近记录</span>
         <button id="clear-history-btn" class="history-clear" type="button">清空</button>
       </div>
       <ul id="history-list" class="history-list"></ul>
     </section>
-
-    <div id="mode-foot" class="mode-foot">正在检测运行环境...</div>
   </main>
 
   <script src="/vendor/jsQR.js"></script>
@@ -445,7 +436,6 @@
       const historyCard = document.getElementById("history-card");
       const historyList = document.getElementById("history-list");
       const clearHistoryBtn = document.getElementById("clear-history-btn");
-      const modeFoot = document.getElementById("mode-foot");
 
       let serverCapabilities = { mode: "unknown", opencv_qr: false };
       let mediaStream = null;
@@ -460,13 +450,6 @@
           }
         } catch {
           serverCapabilities = { mode: "offline", opencv_qr: false };
-        }
-        if (serverCapabilities.mode_label) {
-          modeFoot.textContent = serverCapabilities.mode_label;
-        } else if (serverCapabilities.opencv_qr) {
-          modeFoot.textContent = "桌面极速模式：已启用前端 + 本地 OpenCV 照片二维码双引擎识别";
-        } else {
-          modeFoot.textContent = "云端极速模式：支持手机摄像头实时扫码、相册选图与链接直填";
         }
       }
 
@@ -537,8 +520,9 @@
           return;
         }
         resultCodeEl.textContent = data.code;
-        const sec = data.elapsed_ms ? `${(data.elapsed_ms / 1000).toFixed(1)} 秒` : "-";
-        resultMetaEl.textContent = `耗时 ${sec} · 共自动完成 ${data.pages_visited || "-"} 页 · 小票 ${data.receipt_code || "-"}`;
+        const sec = data.elapsed_ms ? `${(data.elapsed_ms / 1000).toFixed(1)} 秒` : "";
+        const metaParts = [sec, data.receipt_code].filter(Boolean);
+        resultMetaEl.textContent = metaParts.join(" · ");
         resultCard.classList.add("visible");
         saveHistoryItem(data.code, data.receipt_code);
       }
@@ -554,7 +538,7 @@
         busy = true;
         submitBtn.disabled = true;
         resultCard.classList.remove("visible");
-        setStatus("loading", "正在自动填答 20 页问卷并提取验证码，通常需要 3~6 秒...");
+        setStatus("loading", "正在自动填写问卷并获取验证码...");
 
         try {
           const res = await fetch("/api/solve", {
@@ -633,7 +617,7 @@
       async function handleImageFile(file) {
         if (!file || busy) return;
         stopCamera();
-        setStatus("loading", "正在识别照片中的小票二维码...");
+        setStatus("loading", "正在识别小票二维码...");
         resultCard.classList.remove("visible");
 
         let decoded = null;
@@ -653,7 +637,7 @@
         if (serverCapabilities.opencv_qr) {
           busy = true;
           submitBtn.disabled = true;
-          setStatus("loading", "正在启用本地 OpenCV 多尺度增强识别并填答问卷...");
+          setStatus("loading", "正在深度识别照片二维码...");
           try {
             const imageBase64 = await fileToBase64(file);
             const res = await fetch("/api/solve-image", {
@@ -675,13 +659,13 @@
 
         setStatus(
           "error",
-          "未能从该照片中识别出二维码。请靠近小票二维码重新拍一张清晰照片，或点击上方「打开摄像头直接扫码」。"
+          "未能识别出二维码，请靠近小票重拍或使用摄像头直接扫码。"
         );
       }
 
       async function startCamera() {
         if (!navigator.mediaDevices?.getUserMedia) {
-          setStatus("error", "当前浏览器环境不支持网页摄像头，请改用「点击选图」拍照或使用 HTTPS 访问。");
+          setStatus("error", "当前浏览器不支持摄像头扫码，请改用上传照片。");
           return;
         }
         try {
@@ -747,7 +731,7 @@
         }
         cameraVideo.srcObject = null;
         cameraBox.classList.remove("active");
-        cameraBtn.textContent = "📷 打开摄像头直接扫码";
+        cameraBtn.textContent = "📷 打开摄像头扫码";
       }
 
       dropzone.addEventListener("click", () => fileInput.click());
