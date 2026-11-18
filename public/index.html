@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>滨寿司小票立减10元助手</title>
+  <style>
+    :root {
+      --bg: #f4f8fb;
+      --card: #ffffff;
+      --navy: #0c2d48;
+      --teal: #0891b2;
+      --teal-dark: #0e7490;
+      --amber-bg: #fff8e1;
+      --amber-border: #f59e0b;
+      --amber-text: #92400e;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #dbe7f0;
+      --danger-bg: #fef2f2;
+      --danger-text: #b91c1c;
+      --ok-bg: #ecfeff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .page-drag-active::after {
+      content: "松开鼠标即可识别小票二维码并获取验证码";
+      position: fixed;
+      inset: 12px;
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(8, 145, 178, 0.9);
+      border: 3px dashed #fff;
+      border-radius: 16px;
+      pointer-events: none;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0c2d48 0%, #0e7490 100%);
+      color: #fff;
+      padding: 18px 16px 20px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    .coupon-pill {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      font-size: 12.5px;
+      color: #fef08a;
+      font-weight: 600;
+    }
+
+    main {
+      max-width: 540px;
+      margin: -12px auto 32px;
+      padding: 0 14px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 6px 20px rgba(12, 45, 72, 0.06);
+      margin-bottom: 14px;
+    }
+
+    .dropzone {
+      border: 2px dashed #7dd3fc;
+      border-radius: 12px;
+      background: #f0f9ff;
+      padding: 24px 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.18s, background 0.18s, transform 0.15s;
+    }
+
+    .dropzone:hover,
+    .dropzone.dragover {
+      border-color: var(--teal);
+      background: #e0f2fe;
+      transform: translateY(-1px);
+    }
+
+    .dropzone-icon {
+      font-size: 32px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .dropzone-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--navy);
+    }
+
+    .dropzone-sub {
+      margin-top: 4px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    .action-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      transition: opacity 0.15s, background 0.15s;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--teal);
+      color: #fff;
+      font-weight: 600;
+      padding: 10px 14px;
+    }
+
+    .btn-primary:hover:not(:disabled) { background: var(--teal-dark); }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #0f172a;
+      font-weight: 600;
+      padding: 10px 14px;
+    }
+
+    .btn-cam {
+      width: 100%;
+      padding: 11px 14px;
+      font-size: 14px;
+      background: #0f172a;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .camera-box {
+      display: none;
+      margin-top: 12px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+      position: relative;
+    }
+
+    .camera-box.active { display: block; }
+
+    .camera-box video {
+      width: 100%;
+      max-height: 300px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .camera-hint {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 8px;
+      text-align: center;
+      color: #fff;
+      font-size: 12px;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+      pointer-events: none;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 14px 0 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .divider::before,
+    .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .input-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .input-group input {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .input-group input:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.14);
+    }
+
+    .status-banner {
+      display: none;
+      padding: 11px 14px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      margin-bottom: 14px;
+    }
+
+    .status-banner.loading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--ok-bg);
+      color: var(--teal-dark);
+      border: 1px solid #a5f3fc;
+    }
+
+    .status-banner.error {
+      display: block;
+      background: var(--danger-bg);
+      color: var(--danger-text);
+      border: 1px solid #fecaca;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2.5px solid #99f6e4;
+      border-top-color: var(--teal);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .result-card {
+      display: none;
+      background: var(--amber-bg);
+      border: 2px solid var(--amber-border);
+      border-radius: 14px;
+      padding: 18px 16px;
+      text-align: center;
+      margin-bottom: 14px;
+    }
+
+    .result-card.visible { display: block; }
+
+    .result-label {
+      font-size: 13px;
+      color: var(--amber-text);
+      font-weight: 600;
+    }
+
+    .result-code {
+      margin: 6px 0 8px;
+      font-size: 40px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #111827;
+      user-select: all;
+    }
+
+    .result-tip {
+      font-size: 12.5px;
+      color: #78350f;
+      margin-bottom: 12px;
+    }
+
+    .result-meta {
+      margin-top: 10px;
+      font-size: 11.5px;
+      color: #92400e;
+    }
+
+    .history-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--navy);
+      margin-bottom: 8px;
+    }
+
+    .history-clear {
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 2px 6px;
+    }
+
+    .history-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .history-code {
+      font-weight: 800;
+      color: var(--navy);
+      letter-spacing: 0.5px;
+    }
+
+    .history-sub {
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+
+    .mode-foot {
+      text-align: center;
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>滨寿司问卷验证码助手</h1>
+    <div class="coupon-pill">写回小票可当 -10 元优惠券 · 可叠加美团 / 抖音代金券</div>
+  </header>
+
+  <main>
+    <div id="status-banner" class="status-banner"></div>
+
+    <div id="result-card" class="result-card">
+      <div class="result-label">本次小票验证码（请写回小票空白处）</div>
+      <div id="result-code" class="result-code">-</div>
+      <div class="result-tip">下次到店出示小票可立减 10 元，支持叠加美团 / 抖音代金券</div>
+      <button id="copy-code-btn" class="btn-primary" type="button">复制验证码</button>
+      <div id="result-meta" class="result-meta"></div>
+    </div>
+
+    <section class="card">
+      <input id="file-input" type="file" accept="image/*" hidden />
+
+      <div id="dropzone" class="dropzone" role="button" tabindex="0">
+        <div class="dropzone-icon">🧾</div>
+        <div class="dropzone-title">拖入手机拍的小票照片 / 截图，或点击选图</div>
+        <div class="dropzone-sub">也支持直接按 <strong>Ctrl+V</strong> 粘贴图片或链接</div>
+      </div>
+
+      <div class="action-row">
+        <button id="camera-btn" class="btn-cam" type="button">📷 打开摄像头直接扫码</button>
+      </div>
+
+      <div id="camera-box" class="camera-box">
+        <video id="camera-video" playsinline muted autoplay></video>
+        <div class="camera-hint">请将小票上的二维码对准画面中央</div>
+      </div>
+
+      <div class="divider">或直接粘贴问卷链接 / RCN 编号</div>
+
+      <form id="manual-form" class="input-group">
+        <input
+          id="url-input"
+          type="text"
+          placeholder="粘贴 https://cn-hamasushi.csfeedback.net/sv/zh/RCN..."
+          autocomplete="off"
+        />
+        <button id="submit-btn" class="btn-primary" type="submit">获取编号</button>
+      </form>
+    </section>
+
+    <section id="history-card" class="card" style="display: none;">
+      <div class="history-title">
+        <span>最近获取记录（仅保存在本机浏览器）</span>
+        <button id="clear-history-btn" class="history-clear" type="button">清空</button>
+      </div>
+      <ul id="history-list" class="history-list"></ul>
+    </section>
+
+    <div id="mode-foot" class="mode-foot">正在检测运行环境...</div>
+  </main>
+
+  <script src="/vendor/jsQR.js"></script>
+  <script>
+    (() => {
+      const HISTORY_KEY = "hamasushi_code_history";
+      const fileInput = document.getElementById("file-input");
+      const dropzone = document.getElementById("dropzone");
+      const cameraBtn = document.getElementById("camera-btn");
+      const cameraBox = document.getElementById("camera-box");
+      const cameraVideo = document.getElementById("camera-video");
+      const manualForm = document.getElementById("manual-form");
+      const urlInput = document.getElementById("url-input");
+      const submitBtn = document.getElementById("submit-btn");
+      const statusBanner = document.getElementById("status-banner");
+      const resultCard = document.getElementById("result-card");
+      const resultCodeEl = document.getElementById("result-code");
+      const resultMetaEl = document.getElementById("result-meta");
+      const copyCodeBtn = document.getElementById("copy-code-btn");
+      const historyCard = document.getElementById("history-card");
+      const historyList = document.getElementById("history-list");
+      const clearHistoryBtn = document.getElementById("clear-history-btn");
+      const modeFoot = document.getElementById("mode-foot");
+
+      let serverCapabilities = { mode: "unknown", opencv_qr: false };
+      let mediaStream = null;
+      let scanTimer = null;
+      let busy = false;
+
+      async function probeHealth() {
+        try {
+          const res = await fetch("/api/solve");
+          if (res.ok) {
+            serverCapabilities = await res.json();
+          }
+        } catch {
+          serverCapabilities = { mode: "offline", opencv_qr: false };
+        }
+        if (serverCapabilities.opencv_qr) {
+          modeFoot.textContent = "桌面极速模式：已启用前端 + 本地 OpenCV 照片二维码双引擎识别";
+        } else {
+          modeFoot.textContent = "云端极速模式：支持手机摄像头实时扫码、相册选图与链接直填";
+        }
+      }
+
+      function setStatus(type, text) {
+        statusBanner.className = "status-banner";
+        if (!type) {
+          statusBanner.innerHTML = "";
+          return;
+        }
+        if (type === "loading") {
+          statusBanner.classList.add("loading");
+          statusBanner.innerHTML = `<div class="spinner"></div><span>${escapeHtml(text)}</span>`;
+        } else {
+          statusBanner.classList.add("error");
+          statusBanner.textContent = text;
+        }
+      }
+
+      function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, (ch) => (
+          { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+        ));
+      }
+
+      function loadHistory() {
+        try {
+          return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+        } catch {
+          return [];
+        }
+      }
+
+      function saveHistoryItem(code, receiptCode) {
+        const items = loadHistory();
+        const now = new Date().toLocaleString("zh-CN", { hour12: false });
+        const next = [{ code, receipt: receiptCode || "-", time: now }, ...items].slice(0, 10);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+        renderHistory();
+      }
+
+      function renderHistory() {
+        const items = loadHistory();
+        if (!items.length) {
+          historyCard.style.display = "none";
+          return;
+        }
+        historyCard.style.display = "block";
+        historyList.innerHTML = items
+          .map(
+            (item) => `
+              <li class="history-item">
+                <div>
+                  <span class="history-code">${escapeHtml(item.code)}</span>
+                  <div class="history-sub">${escapeHtml(item.receipt)} · ${escapeHtml(item.time)}</div>
+                </div>
+                <button class="btn-secondary" type="button" data-copy="${escapeHtml(item.code)}" style="padding:5px 10px;font-size:12px;">复制</button>
+              </li>
+            `
+          )
+          .join("");
+      }
+
+      function showResult(data) {
+        setStatus(null, "");
+        if (!data.success || !data.code) {
+          resultCard.classList.remove("visible");
+          setStatus("error", data.error || data.page_text_excerpt || `未拿到验证码（状态: ${data.status || "未知"}）`);
+          return;
+        }
+        resultCodeEl.textContent = data.code;
+        const sec = data.elapsed_ms ? `${(data.elapsed_ms / 1000).toFixed(1)} 秒` : "-";
+        resultMetaEl.textContent = `耗时 ${sec} · 共自动完成 ${data.pages_visited || "-"} 页 · 小票 ${data.receipt_code || "-"}`;
+        resultCard.classList.add("visible");
+        saveHistoryItem(data.code, data.receipt_code);
+      }
+
+      async function solveTargetUrl(targetUrl) {
+        if (busy) return;
+        const trimmed = (targetUrl || "").trim();
+        if (!trimmed) {
+          setStatus("error", "请输入或扫入滨寿司问卷链接 / RCN 小票编号。");
+          return;
+        }
+        urlInput.value = trimmed;
+        busy = true;
+        submitBtn.disabled = true;
+        resultCard.classList.remove("visible");
+        setStatus("loading", "正在自动填答 20 页问卷并提取验证码，通常需要 3~6 秒...");
+
+        try {
+          const res = await fetch("/api/solve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: trimmed }),
+          });
+          const data = await res.json();
+          showResult(data);
+        } catch (err) {
+          setStatus("error", `请求失败: ${err.message || err}`);
+        } finally {
+          busy = false;
+          submitBtn.disabled = false;
+        }
+      }
+
+      function looksLikeSurveyPayload(text) {
+        if (!text) return false;
+        return /csfeedback\.net\/sv\/|RCN\d{16,}/i.test(text);
+      }
+
+      async function decodeBitmapInBrowser(bitmap) {
+        if ("BarcodeDetector" in window) {
+          try {
+            const detector = new BarcodeDetector({ formats: ["qr_code"] });
+            const found = await detector.detect(bitmap);
+            const matched = found.find((f) => f.rawValue && looksLikeSurveyPayload(f.rawValue)) || found[0];
+            if (matched?.rawValue) return matched.rawValue.trim();
+          } catch {
+            // Fall through to jsQR multi-scale scan.
+          }
+        }
+
+        if (typeof window.jsQR !== "function") return null;
+
+        const w = bitmap.width;
+        const h = bitmap.height;
+        const attempts = [
+          { sx: 0, sy: 0, sw: w, sh: h, maxDim: 1200 },
+          { sx: 0, sy: 0, sw: w, sh: h, maxDim: 1800 },
+          { sx: 0, sy: Math.floor(h * 0.4), sw: w, sh: Math.ceil(h * 0.6), maxDim: 1400 },
+          { sx: Math.floor(w * 0.15), sy: Math.floor(h * 0.25), sw: Math.ceil(w * 0.7), sh: Math.ceil(h * 0.55), maxDim: 1400 },
+        ];
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        for (const box of attempts) {
+          const longest = Math.max(box.sw, box.sh);
+          const scale = longest > box.maxDim ? box.maxDim / longest : 1;
+          canvas.width = Math.max(1, Math.round(box.sw * scale));
+          canvas.height = Math.max(1, Math.round(box.sh * scale));
+          ctx.drawImage(bitmap, box.sx, box.sy, box.sw, box.sh, 0, 0, canvas.width, canvas.height);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const qr = window.jsQR(imgData.data, imgData.width, imgData.height, {
+            inversionAttempts: "attemptBoth",
+          });
+          if (qr?.data) return qr.data.trim();
+        }
+        return null;
+      }
+
+      function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("读取图片失败"));
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function handleImageFile(file) {
+        if (!file || busy) return;
+        stopCamera();
+        setStatus("loading", "正在识别照片中的小票二维码...");
+        resultCard.classList.remove("visible");
+
+        let decoded = null;
+        try {
+          const bitmap = await createImageBitmap(file);
+          decoded = await decodeBitmapInBrowser(bitmap);
+          bitmap.close();
+        } catch {
+          // Fallback handled below.
+        }
+
+        if (decoded) {
+          await solveTargetUrl(decoded);
+          return;
+        }
+
+        if (serverCapabilities.opencv_qr) {
+          busy = true;
+          submitBtn.disabled = true;
+          setStatus("loading", "正在启用本地 OpenCV 多尺度增强识别并填答问卷...");
+          try {
+            const imageBase64 = await fileToBase64(file);
+            const res = await fetch("/api/solve-image", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ image_base64: imageBase64 }),
+            });
+            const data = await res.json();
+            if (data.decoded_qr) urlInput.value = data.decoded_qr;
+            showResult(data);
+          } catch (err) {
+            setStatus("error", `图片上传识别失败: ${err.message || err}`);
+          } finally {
+            busy = false;
+            submitBtn.disabled = false;
+          }
+          return;
+        }
+
+        setStatus(
+          "error",
+          "未能从该照片中识别出二维码。请靠近小票二维码重新拍一张清晰照片，或点击上方「打开摄像头直接扫码」。"
+        );
+      }
+
+      async function startCamera() {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setStatus("error", "当前浏览器环境不支持网页摄像头，请改用「点击选图」拍照或使用 HTTPS 访问。");
+          return;
+        }
+        try {
+          setStatus(null, "");
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" } },
+            audio: false,
+          });
+          cameraVideo.srcObject = mediaStream;
+          await cameraVideo.play();
+          cameraBox.classList.add("active");
+          cameraBtn.textContent = "⏹ 关闭摄像头";
+
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          const detector = "BarcodeDetector" in window
+            ? new BarcodeDetector({ formats: ["qr_code"] })
+            : null;
+
+          scanTimer = setInterval(async () => {
+            if (!mediaStream || cameraVideo.readyState < 2 || busy) return;
+            try {
+              let foundValue = null;
+              if (detector) {
+                const hits = await detector.detect(cameraVideo);
+                if (hits.length) foundValue = hits[0].rawValue?.trim();
+              }
+              if (!foundValue && typeof window.jsQR === "function") {
+                const vw = cameraVideo.videoWidth;
+                const vh = cameraVideo.videoHeight;
+                const scale = Math.min(1, 720 / Math.max(vw, vh));
+                canvas.width = Math.round(vw * scale);
+                canvas.height = Math.round(vh * scale);
+                ctx.drawImage(cameraVideo, 0, 0, canvas.width, canvas.height);
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const qr = window.jsQR(imgData.data, imgData.width, imgData.height, {
+                  inversionAttempts: "dontInvert",
+                });
+                if (qr?.data) foundValue = qr.data.trim();
+              }
+              if (foundValue && looksLikeSurveyPayload(foundValue)) {
+                stopCamera();
+                await solveTargetUrl(foundValue);
+              }
+            } catch {
+              // Ignore single-frame decode glitch.
+            }
+          }, 140);
+        } catch (err) {
+          stopCamera();
+          setStatus("error", `无法打开摄像头（请检查浏览器权限或 HTTPS 环境）: ${err.message || err}`);
+        }
+      }
+
+      function stopCamera() {
+        if (scanTimer) {
+          clearInterval(scanTimer);
+          scanTimer = null;
+        }
+        if (mediaStream) {
+          mediaStream.getTracks().forEach((t) => t.stop());
+          mediaStream = null;
+        }
+        cameraVideo.srcObject = null;
+        cameraBox.classList.remove("active");
+        cameraBtn.textContent = "📷 打开摄像头直接扫码";
+      }
+
+      dropzone.addEventListener("click", () => fileInput.click());
+      dropzone.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          fileInput.click();
+        }
+      });
+
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files?.[0];
+        fileInput.value = "";
+        if (file) handleImageFile(file);
+      });
+
+      ["dragenter", "dragover"].forEach((evt) => {
+        document.addEventListener(evt, (e) => {
+          e.preventDefault();
+          document.body.classList.add("page-drag-active");
+          dropzone.classList.add("dragover");
+        });
+      });
+
+      ["dragleave", "drop"].forEach((evt) => {
+        document.addEventListener(evt, (e) => {
+          e.preventDefault();
+          if (evt === "drop" || e.relatedTarget === null) {
+            document.body.classList.remove("page-drag-active");
+            dropzone.classList.remove("dragover");
+          }
+        });
+      });
+
+      document.addEventListener("drop", (e) => {
+        const file = e.dataTransfer?.files?.[0];
+        if (file) {
+          handleImageFile(file);
+          return;
+        }
+        const droppedText = e.dataTransfer?.getData("text/plain");
+        if (looksLikeSurveyPayload(droppedText)) {
+          solveTargetUrl(droppedText);
+        }
+      });
+
+      document.addEventListener("paste", (e) => {
+        const items = Array.from(e.clipboardData?.items || []);
+        const imgItem = items.find((i) => i.type.startsWith("image/"));
+        if (imgItem) {
+          const blob = imgItem.getAsFile();
+          if (blob) {
+            e.preventDefault();
+            handleImageFile(blob);
+            return;
+          }
+        }
+        const pastedText = e.clipboardData?.getData("text/plain") || "";
+        if (document.activeElement !== urlInput && looksLikeSurveyPayload(pastedText)) {
+          e.preventDefault();
+          solveTargetUrl(pastedText);
+        }
+      });
+
+      cameraBtn.addEventListener("click", () => {
+        if (mediaStream) stopCamera();
+        else startCamera();
+      });
+
+      manualForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        solveTargetUrl(urlInput.value);
+      });
+
+      copyCodeBtn.addEventListener("click", async () => {
+        const code = resultCodeEl.textContent?.trim();
+        if (!code || code === "-") return;
+        try {
+          await navigator.clipboard.writeText(code);
+          copyCodeBtn.textContent = "已复制！";
+          setTimeout(() => { copyCodeBtn.textContent = "复制验证码"; }, 1600);
+        } catch {
+          setStatus("error", `自动复制失败，请手动长按复制验证码: ${code}`);
+        }
+      });
+
+      historyList.addEventListener("click", async (e) => {
+        const btn = e.target.closest("[data-copy]");
+        if (!btn) return;
+        const code = btn.getAttribute("data-copy");
+        if (!code) return;
+        try {
+          await navigator.clipboard.writeText(code);
+          btn.textContent = "已复制";
+          setTimeout(() => { btn.textContent = "复制"; }, 1200);
+        } catch {
+          // Ignore clipboard errors.
+        }
+      });
+
+      clearHistoryBtn.addEventListener("click", () => {
+        localStorage.removeItem(HISTORY_KEY);
+        renderHistory();
+      });
+
+      renderHistory();
+      probeHealth();
+    })();
+  </script>
+</body>
+</html>

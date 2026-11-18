@@ -10,7 +10,6 @@ from pathlib import Path
 import re
 import sys
 from typing import Iterable
-from urllib.parse import urlparse
 
 from playwright.sync_api import (
     Browser,
@@ -23,112 +22,19 @@ from playwright.sync_api import (
     sync_playwright,
 )
 
-BASE_SURVEY_URL = "https://cn-hamasushi.csfeedback.net/sv/zh"
-DEFAULT_COMMENT = "菜品新鲜美味，服务态度很好，整体体验非常满意。"
-
-RECEIPT_PATTERN = re.compile(
-    r"^(RCN)(\d{2})(\d{2})(\d{2})(\d{2})\d{4}(\d{4})\d+$",
-    re.IGNORECASE,
+from qr_utils import decode_qr_from_path, pick_survey_payload
+from survey_common import (
+    DEFAULT_COMMENT,
+    TERMINAL_USED_INDICATORS,
+    ReceiptInfo,
+    extract_code_from_text,
+    extract_receipt_from_url,
+    has_captcha_markers,
+    normalize_target_url,
+    parse_receipt_code,
+    score_option_text,
 )
-
-CAPTCHA_INDICATORS = (
-    "cf-turnstile",
-    "g-recaptcha",
-    "h-captcha",
-    "recaptcha",
-    "turnstile",
-    "hcaptcha",
-    "verify you are human",
-    "请完成安全验证",
-    "人机验证",
-    "滑动拼图",
-    "点选验证码",
-)
-
-TERMINAL_USED_INDICATORS = (
-    "已回答",
-    "已参与",
-    "已使用",
-    "已提交",
-    "超过期限",
-    "已过期",
-    "无效",
-    "无法回答",
-    "not found",
-    "expired",
-)
-
-EXACT_OPTION_SCORES: dict[str, int] = {
-    "是": 35,
-    "on": 35,
-    "否": -60,
-    "无": -50,
-    "没有": -90,
-    "其他": -20,
-}
-
-# Priority score table for choosing positive/expected survey options across pages.
-# Higher scores win; negative scores avoid complaints/undesirable options.
-OPTION_SCORE_RULES: tuple[tuple[str, int], ...] = (
-    ("10\u3000非常推荐", 120),
-    ("非常推荐", 115),
-    ("非常满意", 110),
-    ("十分满意", 110),
-    ("满意", 100),
-    ("肯定会", 95),
-    ("愿意", 90),
-    ("正好", 90),
-    ("合适", 85),
-    ("中国", 75),
-    ("堂食", 70),
-    ("几乎每天", 65),
-    ("大约每周", 60),
-    ("技术人员", 55),
-    ("20～29岁", 55),
-    ("20-29", 55),
-    ("男性", 50),
-    ("一个人", 50),
-    ("6,000", 45),
-    ("金枪鱼", 45),
-    ("还可以", 40),
-    ("应该会", 40),
-    # Penalize negative / outlier / refusal answers so neutral/positive choices win.
-    ("不太满意", -100),
-    ("不满意", -110),
-    ("完全不推荐", -120),
-    ("不愿意", -90),
-    ("不确定", -40),
-    ("不会", -90),
-    ("不好说", -40),
-    ("太大", -60),
-    ("稍大", -30),
-    ("稍小", -30),
-    ("太小", -60),
-    ("太硬", -60),
-    ("稍硬", -30),
-    ("稍软", -30),
-    ("太软", -60),
-    ("不想回复", -80),
-    ("未接受服务", -80),
-    ("以上都不是", -100),
-)
-
-CODE_REGEXES: tuple[re.Pattern[str], ...] = (
-    re.compile(r"(?:验证码|调查编号|确认编号|兑换码|编号|Code)[：:\s]*([A-Za-z0-9-]{4,24})", re.IGNORECASE),
-    re.compile(r"(?:NO\.?|Number)[：:\s]*([A-Za-z0-9-]{4,24})", re.IGNORECASE),
-)
-
-
-@dataclass
-class ReceiptInfo:
-    """Parsed receipt metadata extracted from URL or RCN receipt code."""
-
-    receipt_code: str = ""
-    shop_code: str = ""
-    month: int | None = None
-    day: int | None = None
-    hour: int | None = None
-    minute: int | None = None
+from survey_http import solve_survey_http
 
 
 @dataclass
@@ -165,50 +71,6 @@ class SurveyResult:
     page_text_excerpt: str
 
 
-def normalize_target_url(raw_input: str) -> str:
-    """Accept either a full csfeedback URL or a bare receipt code."""
-    cleaned = raw_input.strip()
-    if not cleaned:
-        raise ValueError("问卷链接或小票编号不能为空。")
-    if cleaned.startswith(("http://", "https://")):
-        return cleaned
-    return f"{BASE_SURVEY_URL}/{cleaned.lstrip('/')}"
-
-
-def extract_receipt_from_url(url: str) -> str:
-    """Extract trailing receipt code segment from a survey URL if present."""
-    parsed = urlparse(url)
-    segments = [seg for seg in parsed.path.split("/") if seg]
-    if segments and segments[-1].upper().startswith("RCN"):
-        return segments[-1]
-    return ""
-
-
-def parse_receipt_code(code: str) -> ReceiptInfo:
-    """Parse date, visit time, and shop code from a Hamasushi RCN receipt code."""
-    info = ReceiptInfo(receipt_code=code.strip())
-    match = RECEIPT_PATTERN.match(info.receipt_code)
-    if not match:
-        return info
-
-    month = int(match.group(2))
-    day = int(match.group(3))
-    hour = int(match.group(4))
-    minute = int(match.group(5))
-    shop_code = match.group(6)
-
-    if 1 <= month <= 12:
-        info.month = month
-    if 1 <= day <= 31:
-        info.day = day
-    if 0 <= hour <= 23:
-        info.hour = hour
-    if 0 <= minute <= 59:
-        info.minute = minute
-    info.shop_code = shop_code
-    return info
-
-
 def merge_receipt_overrides(info: ReceiptInfo, config: SurveyConfig) -> ReceiptInfo:
     """Apply explicit CLI overrides on top of parsed receipt defaults."""
     return ReceiptInfo(
@@ -219,29 +81,6 @@ def merge_receipt_overrides(info: ReceiptInfo, config: SurveyConfig) -> ReceiptI
         hour=config.hour if config.hour is not None else info.hour,
         minute=config.minute if config.minute is not None else info.minute,
     )
-
-
-def score_option_text(text: str) -> int:
-    """Return a heuristic preference score for an option label."""
-    normalized = " ".join(text.split()).strip()
-    if not normalized:
-        return -10
-
-    lowered = normalized.lower()
-    if lowered in EXACT_OPTION_SCORES:
-        return EXACT_OPTION_SCORES[lowered]
-
-    score = 0
-    for keyword, weight in OPTION_SCORE_RULES:
-        if keyword.lower() in lowered:
-            # Negative rules override positive substring matches (e.g. "不满意" contains "满意").
-            if weight < 0:
-                return weight
-            score = max(score, weight)
-
-    if normalized.startswith("10"):
-        score = max(score, 120)
-    return score
 
 
 def launch_browser(playwright: Playwright, config: SurveyConfig) -> Browser:
@@ -285,10 +124,7 @@ def detect_captcha(page: Page) -> bool:
     """Check whether any CAPTCHA or human-verification gate is visible/present."""
     body_text = page.locator("body").inner_text().lower() if page.locator("body").count() else ""
     html_snippet = page.content().lower()
-    for indicator in CAPTCHA_INDICATORS:
-        if indicator in body_text or indicator in html_snippet:
-            return True
-    return False
+    return has_captcha_markers(body_text, html_snippet)
 
 
 def find_advance_button(page: Page) -> Locator | None:
@@ -528,10 +364,9 @@ def extract_validation_code(page: Page) -> str | None:
             main_text = loc.inner_text()
             break
 
-    for pattern in CODE_REGEXES:
-        match = pattern.search(main_text)
-        if match:
-            return match.group(1).strip()
+    matched = extract_code_from_text(main_text)
+    if matched:
+        return matched
 
     # Check highlighted/code elements as fallback (excluding footer ref codes).
     for sel in ("#main strong", "#main b", "#main .code", "#main .number", "#main p", "#main span"):
@@ -729,15 +564,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="滨寿司 (cn-hamasushi.csfeedback.net) 顾客满意度问卷自动填写并提取编号工具",
     )
-    parser.add_argument("url", nargs="?", help="问卷链接或 RCN 小票编号")
-    parser.add_argument("--headless", action="store_true", help="使用无头模式运行（不显示浏览器窗口）")
-    parser.add_argument("--delay", type=float, default=0.2, help="每页提交前等待秒数（默认 0.2）")
+    parser.add_argument("url", nargs="?", help="问卷链接、RCN 小票编号，或小票照片路径")
+    parser.add_argument("--qr", help="从本地小票照片/二维码截图识别链接")
+    parser.add_argument(
+        "--engine",
+        choices=["http", "playwright"],
+        default="http",
+        help="执行引擎：http 为极速直连（约 3-5 秒，默认），playwright 为完整浏览器（可截图/人工确认）",
+    )
+    parser.add_argument("--headless", action="store_true", help="Playwright 无头模式（不显示浏览器窗口）")
+    parser.add_argument("--delay", type=float, default=0.2, help="Playwright 每页提交前等待秒数（默认 0.2）")
     parser.add_argument("--max-pages", type=int, default=35, help="最大翻页保护上限（默认 35）")
     parser.add_argument("--comment", default=DEFAULT_COMMENT, help="当遇到必填文本题时填写的内容")
-    parser.add_argument("--pause-before-submit", action="store_true", help="到 >=95%% 提交前暂停等待确认")
+    parser.add_argument("--pause-before-submit", action="store_true", help="到 >=95%% 提交前暂停等待确认（自动启用 playwright）")
     parser.add_argument("--output-dir", default="output", help="完成页截图和 JSON 输出目录（默认 output）")
     parser.add_argument("--json-out", action="store_true", help="额外保存 JSON 格式结果文件")
-    parser.add_argument("--browser", choices=["msedge", "chrome", "chromium"], help="指定浏览器引擎")
+    parser.add_argument("--browser", choices=["msedge", "chrome", "chromium"], help="指定 Playwright 浏览器引擎")
     parser.add_argument("--shop", help="手动覆盖 4 位店铺编号")
     parser.add_argument("--month", type=int, help="手动覆盖消费月份 (1-12)")
     parser.add_argument("--day", type=int, help="手动覆盖消费日期 (1-31)")
@@ -746,36 +588,84 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _resolve_input_source(args: argparse.Namespace) -> str:
+    if args.qr:
+        candidates = decode_qr_from_path(args.qr)
+        decoded = pick_survey_payload(candidates)
+        if not decoded:
+            raise RuntimeError(f"未能从图片中识别出二维码: {args.qr}")
+        print(f"[二维码识别] {decoded}")
+        return decoded
+
+    raw = args.url or input("请输入滨寿司问卷链接、RCN 小票编号，或拖入小票照片路径: ").strip().strip('"')
+    maybe_path = Path(raw)
+    if maybe_path.is_file() and maybe_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".bmp"}:
+        candidates = decode_qr_from_path(maybe_path)
+        decoded = pick_survey_payload(candidates)
+        if not decoded:
+            raise RuntimeError(f"未能从图片中识别出二维码: {maybe_path}")
+        print(f"[二维码识别] {decoded}")
+        return decoded
+    return raw
+
+
 def main() -> int:
     """CLI entrypoint."""
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     args = build_arg_parser().parse_args()
-    raw_url = args.url or input("请输入滨寿司问卷链接或 RCN 小票编号: ").strip()
+    raw_url = _resolve_input_source(args)
 
-    config = SurveyConfig(
-        url=raw_url,
-        headless=args.headless,
-        step_delay=args.delay,
-        max_pages=args.max_pages,
-        comment=args.comment,
-        pause_before_submit=args.pause_before_submit,
-        output_dir=Path(args.output_dir),
-        browser_channel=None if args.browser == "chromium" else args.browser,
-        shop_code=args.shop,
-        month=args.month,
-        day=args.day,
-        hour=args.hour,
-        minute=args.minute,
+    use_playwright = (
+        args.engine == "playwright"
+        or args.pause_before_submit
+        or args.browser is not None
+        or args.headless
+        or any(v is not None for v in (args.shop, args.month, args.day, args.hour, args.minute))
     )
 
-    result = run_survey(config)
+    if use_playwright:
+        config = SurveyConfig(
+            url=raw_url,
+            headless=args.headless,
+            step_delay=args.delay,
+            max_pages=args.max_pages,
+            comment=args.comment,
+            pause_before_submit=args.pause_before_submit,
+            output_dir=Path(args.output_dir),
+            browser_channel=None if args.browser == "chromium" else args.browser,
+            shop_code=args.shop,
+            month=args.month,
+            day=args.day,
+            hour=args.hour,
+            minute=args.minute,
+        )
+        result = run_survey(config)
+        result_dict = asdict(result)
+    else:
+        http_res = solve_survey_http(
+            raw_url,
+            comment=args.comment,
+            max_pages=args.max_pages,
+        )
+        result = SurveyResult(
+            success=http_res.success,
+            status=http_res.status,
+            code=http_res.code,
+            progress=http_res.progress,
+            pages_visited=http_res.pages_visited,
+            screenshot_path=None,
+            final_url=http_res.final_url,
+            page_text_excerpt=http_res.page_text_excerpt,
+        )
+        result_dict = http_res.to_dict()
 
     if args.json_out:
-        config.output_dir.mkdir(parents=True, exist_ok=True)
-        json_path = config.output_dir / "latest_result.json"
-        json_path.write_text(json.dumps(asdict(result), ensure_ascii=False, indent=2), encoding="utf-8")
+        out_dir = Path(args.output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        json_path = out_dir / "latest_result.json"
+        json_path.write_text(json.dumps(result_dict, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print("\n" + "=" * 56)
     print(f"运行状态: {result.status} (成功: {result.success})")
