@@ -5,7 +5,10 @@ from __future__ import annotations
 from functools import partial
 from http.server import ThreadingHTTPServer
 import io
+import socket
+import subprocess
 import threading
+import time
 
 import cv2
 import numpy as np
@@ -226,6 +229,74 @@ def test_browser_ui_photo_qr_flow() -> None:
         server.server_close()
 
 
+def test_powershell_zero_install_server() -> None:
+    """Verify Windows PowerShell 5.1 win_app.ps1 serves the UI and decodes receipt photos in Edge."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+
+    proc = subprocess.Popen(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "win_app.ps1",
+            "-NoBrowser",
+            "-Port",
+            str(port),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        base = f"http://127.0.0.1:{port}"
+        for _ in range(30):
+            try:
+                r = requests.get(f"{base}/api/solve", timeout=1)
+                if r.status_code == 200:
+                    assert r.json()["mode"] == "windows-powershell"
+                    break
+            except requests.RequestException:
+                time.sleep(0.2)
+        else:
+            raise AssertionError("PowerShell win_app.ps1 server failed to start in time")
+
+        enc = cv2.QRCodeEncoder.create()
+        qr_raw = enc.encode("https://cn-hamasushi.csfeedback.net/sv/zh/RCN0512142801118888654321")
+        qr_large = cv2.resize(qr_raw, (260, 260), interpolation=cv2.INTER_NEAREST)
+        canvas = np.full((1400, 1000), 190, dtype=np.uint8)
+        canvas[950:1210, 370:630] = qr_large
+        buf = io.BytesIO()
+        Image.fromarray(canvas).save(buf, format="PNG")
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(channel="msedge", headless=True)
+            page = browser.new_page()
+            page.route(
+                "**/api/solve",
+                lambda route: route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body='{"success":true,"status":"completed","code":"S7777","pages_visited":20,"elapsed_ms":1500,"receipt_code":"RCN0512142801118888654321"}',
+                )
+                if route.request.method == "POST"
+                else route.continue_(),
+            )
+            page.goto(f"{base}/", wait_until="networkidle")
+            assert "Windows 免安装模式" in page.locator("#mode-foot").inner_text()
+            page.locator("#file-input").set_input_files(
+                {"name": "receipt.png", "mimeType": "image/png", "buffer": buf.getvalue()}
+            )
+            page.locator("#result-card.visible").wait_for(timeout=8000)
+            assert page.locator("#result-code").inner_text().strip() == "S7777"
+            browser.close()
+    finally:
+        proc.terminate()
+        proc.wait(timeout=5)
+
+
 if __name__ == "__main__":
     test_parse_receipt_code()
     test_normalize_target_url()
@@ -236,4 +307,5 @@ if __name__ == "__main__":
     test_qr_decode_from_synthetic_receipt_photo()
     test_desktop_app_http_endpoints()
     test_browser_ui_photo_qr_flow()
+    test_powershell_zero_install_server()
     print("All unit tests passed!")

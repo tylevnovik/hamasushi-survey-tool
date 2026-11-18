@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         滨寿司问卷自动填写助手 (Hamasushi Survey AutoFill)
 // @namespace    https://github.com/tylevnovik/hamasushi-survey-tool
-// @version      1.1.0
+// @version      1.2.0
 // @description  自动填写滨寿司满意度问卷：补全小票时间分钟、优先好评作答、自动翻页并提取复制验证码
 // @author       tylevnovik
 // @license      MIT

@@ -7,21 +7,21 @@
 
 ---
 
-## 推荐使用方式（最顺手的两种新模式）
+## 推荐使用方式（支持「零安装」直接开用）
 
-### 方式一：电脑双击桌面工具（直接拖入手机拍的小票照片，3~5 秒出码）
+### 方式一：Windows 免安装版（不用 Python、不用 Node、不用装任何东西）
 
-不需要敲命令行，也不用再切微信复制地址，把手机拍的小票照片或截图直接拖进窗口即可：
+只依赖 Windows 10/11 系统自带的 PowerShell 与 Microsoft Edge，下载解压即可直接用：
 
-1. 克隆或下载本仓库后，双击根目录的 **`启动拖拽小票工具.bat`**（或在终端执行 `uv run --extra desktop python desktop_app.py`）。
-2. 会自动弹出一个独立的桌面应用窗口：
-   - **直接拖入照片**：把手机拍的小票照片（微信文件传输助手保存的、数据线导出的或截图）拖进窗口；
+1. 前往 [Releases 最新版本](https://github.com/tylevnovik/hamasushi-survey-tool/releases/latest) 下载 **`hamasushi-win-noinstall.zip`**（或直接下载本仓库源码包）并解压。
+2. 直接双击 **`免安装直接启动.bat`**（底层运行 [win_app.ps1](win_app.ps1)）。
+3. 弹出独立应用窗口后：
+   - **直接拖入照片**：把手机拍的小票照片（微信文件传输助手保存的、截图等）拖进窗口；
    - **Ctrl+V 粘贴**：直接粘贴截图、图片或链接；
-   - **打开摄像头扫码**：拿小票对着电脑摄像头扫一下；
-   - **内置双引擎识别**：先由浏览器端 `BarcodeDetector` + `jsQR` 快速解码，若照片有倾斜/反光/二维码较小，自动回落到本地 OpenCV 多尺度增强识别（[qr_utils.py](qr_utils.py)）。
-3. 后台通过纯 HTTP 引擎（[survey_http.py](survey_http.py)）自动走完约 20 页问卷，**约 3~5 秒**直接展示超大号验证码并提供一键复制与本机历史记录。
+   - **打开摄像头扫码**：小票对准电脑摄像头扫一下；
+   - 由 Edge 原生 `BarcodeDetector` + 内置离线 [jsQR.js](public/vendor/jsQR.js) 直接在前端识别二维码，PowerShell 通过系统 `.NET HttpClient` 完成约 20 页问卷并展示超大号验证码。
 
-> 如想在**同一局域网下用手机直接连电脑访问**，可运行：`uv run --extra desktop python desktop_app.py --lan`。
+> 如果照片反光、角度歪斜或二维码过小导致前端未识别，可改用 Python 桌面增强版：双击 **`启动拖拽小票工具.bat`**（需 Python/`uv`，会在前端识别失败时自动启用本地 OpenCV 多尺度增强识别 [qr_utils.py](qr_utils.py)）。如希望同一 Wi-Fi 下手机连电脑访问，可运行：`uv run --extra desktop python desktop_app.py --lan`。
 
 ---
 

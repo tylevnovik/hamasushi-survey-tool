@@ -461,7 +461,9 @@
         } catch {
           serverCapabilities = { mode: "offline", opencv_qr: false };
         }
-        if (serverCapabilities.opencv_qr) {
+        if (serverCapabilities.mode_label) {
+          modeFoot.textContent = serverCapabilities.mode_label;
+        } else if (serverCapabilities.opencv_qr) {
           modeFoot.textContent = "桌面极速模式：已启用前端 + 本地 OpenCV 照片二维码双引擎识别";
         } else {
           modeFoot.textContent = "云端极速模式：支持手机摄像头实时扫码、相册选图与链接直填";
@@ -592,10 +594,12 @@
         const w = bitmap.width;
         const h = bitmap.height;
         const attempts = [
-          { sx: 0, sy: 0, sw: w, sh: h, maxDim: 1200 },
-          { sx: 0, sy: 0, sw: w, sh: h, maxDim: 1800 },
-          { sx: 0, sy: Math.floor(h * 0.4), sw: w, sh: Math.ceil(h * 0.6), maxDim: 1400 },
-          { sx: Math.floor(w * 0.15), sy: Math.floor(h * 0.25), sw: Math.ceil(w * 0.7), sh: Math.ceil(h * 0.55), maxDim: 1400 },
+          { sx: 0, sy: 0, sw: w, sh: h, maxDim: 1200, filter: "none" },
+          { sx: 0, sy: 0, sw: w, sh: h, maxDim: 1800, filter: "none" },
+          { sx: 0, sy: Math.floor(h * 0.4), sw: w, sh: Math.ceil(h * 0.6), maxDim: 1400, filter: "none" },
+          { sx: Math.floor(w * 0.15), sy: Math.floor(h * 0.25), sw: Math.ceil(w * 0.7), sh: Math.ceil(h * 0.55), maxDim: 1400, filter: "none" },
+          { sx: 0, sy: Math.floor(h * 0.4), sw: w, sh: Math.ceil(h * 0.6), maxDim: 1600, filter: "grayscale(1) contrast(1.8)" },
+          { sx: 0, sy: 0, sw: w, sh: h, maxDim: 1600, filter: "grayscale(1) contrast(2.0)" },
         ];
 
         const canvas = document.createElement("canvas");
@@ -605,7 +609,9 @@
           const scale = longest > box.maxDim ? box.maxDim / longest : 1;
           canvas.width = Math.max(1, Math.round(box.sw * scale));
           canvas.height = Math.max(1, Math.round(box.sh * scale));
+          ctx.filter = box.filter || "none";
           ctx.drawImage(bitmap, box.sx, box.sy, box.sw, box.sh, 0, 0, canvas.width, canvas.height);
+          ctx.filter = "none";
           const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const qr = window.jsQR(imgData.data, imgData.width, imgData.height, {
             inversionAttempts: "attemptBoth",
