@@ -10,4 +10,8 @@ output_*/
 .DS_Store
 Thumbs.db
 rust/target/
+*.exe
+hamasushi-tool-linux-*
+hamasushi-tool-darwin-*
+
 
